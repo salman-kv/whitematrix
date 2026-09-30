@@ -1,0 +1,122 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>ShopEase - How the Features Work</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<header>
+  <div class="brand">ShopEase · Flutter shopping app</div>
+  <h1>How the Features Work</h1>
+  <p>For each feature: what the user sees, and how it is built.</p>
+</header>
+
+<div class="note">Files are inside <code>lib/</code>. "Controller" means a <code>ChangeNotifier</code> class provided with Provider. All product data comes from the DummyJSON API through <code>ProductRepository</code>.</div>
+
+<h2>Getting in</h2>
+
+<div class="feature">
+<h3>1. Splash screen</h3>
+<p><span class="label">What it does:</span> shows the animated logo and illustration, then opens Home (if already logged in) or Login.</p>
+<p><span class="label">How:</span> <code>views/splash/splash_view.dart</code> runs a 2.4-second <code>AnimationController</code> (scale and fade for the logo, a growing progress bar). At the same time it loads the product catalogue with <code>Future.wait</code> together with a 2.6-second minimum delay, then checks <code>AuthController.isLoggedIn</code> to choose the next page.</p>
+</div>
+
+<div class="feature">
+<h3>2. Login</h3>
+<p><span class="label">What it does:</span> Email/Phone toggle, password with show/hide, Login button, error messages. A demo card fills the form with one tap; the group icon lists all demo accounts.</p>
+<p><span class="label">How:</span> <code>views/auth/login_view.dart</code> with rules in <code>core/validators.dart</code>: e-mail format, a 10-digit mobile number starting 6 to 9, password of at least 6 characters. Live validation starts after the first tap on Login. A wrong password shows a red banner and shakes the form (an animation driven by a sine curve) with a vibration. The sliding Email/Phone toggle is an <code>AnimatedAlign</code>. The form is in a scroll view, so it fits small screens and the keyboard.</p>
+</div>
+
+<div class="feature">
+<h3>3. Accounts and separate data</h3>
+<p><span class="label">What it does:</span> three fixed logins; each account has its own cart, wishlist, orders and recent searches.</p>
+<p><span class="label">How:</span> <code>DemoAccounts.authenticate()</code> checks e-mail (or phone) and password. On success <code>AuthController</code> calls <code>StorageService.useAccount(email)</code>, which prefixes every storage key with that e-mail, and saves the session. <code>main.dart</code> listens for the change and calls <code>reload()</code> on the cart, wishlist and search controllers so they read the new account's data. Logout clears the scope and the lists empty out. On the next launch the saved session skips Login.</p>
+</div>
+
+<h2>Browsing</h2>
+
+<div class="feature">
+<h3>4. Home</h3>
+<p><span class="label">What it does:</span> greeting with the user's first name, search bar, filter button, three sliding banners, five category shortcuts, a Best Deals strip, sort chips and the Trending grid.</p>
+<p><span class="label">How:</span> <code>views/home/home_view.dart</code> is one scrollable page built from slivers. The banners (<code>home_banner.dart</code>) are a <code>PageView</code> moved by a 4-second timer; "Shop Now" opens that category. Best Deals is the 10 products with the largest discount (<code>CatalogController.bestDeals</code>). The sort chips (Popular, Top Rated, Price Low, Price High, Best Discount) call <code>updateQuery</code> on the paged controller. Pull-to-refresh reloads the list.</p>
+</div>
+
+<div class="feature">
+<h3>5. Infinite scrolling</h3>
+<p><span class="label">What it does:</span> products appear 10 at a time; the next page is added automatically as the user nears the bottom.</p>
+<p><span class="label">How:</span></p>
+<div class="flow">scroll within 500 px of the end → loadMore() → 700 ms wait → add next page → notifyListeners() → grid grows</div>
+<ul>
+<li><code>PagedProductsController</code> holds all matches but exposes only one page more each time <code>loadMore()</code> runs. Flags <code>isLoadingMore</code> and <code>hasMore</code> stop duplicate or needless loads; a request counter drops results from an outdated filter.</li>
+<li><code>PagedProductGrid</code> (<code>widgets/paged_product_grid.dart</code>) listens to the <code>ScrollController</code>, shows a spinner footer while loading and "You've seen it all!" at the end. It also re-checks after each rebuild, so a tall screen that is not yet full keeps loading.</li>
+<li>Page size: 10 (Home, categories, search), 8 (Best Sellers). The whole list is downloaded once and paged on the phone, so search, sort and filters can be combined freely. The 700 ms wait is simulated so the loader is visible.</li>
+<li>The same two classes power Home, Best Sellers, category pages and search results.</li>
+</ul>
+</div>
+
+<div class="feature">
+<h3>6. Search</h3>
+<p><span class="label">What it does:</span> results update as you type; recent and popular searches; chips for All, Men, Women, Electronics, Home, Beauty, Sports.</p>
+<p><span class="label">How:</span> <code>views/search/search_view.dart</code> waits 350 ms after the last key (a <code>Timer</code>) before searching. <code>ProductQuery</code> scores each product: title starts with the word 100, title contains it 80, brand 60, category 40, description 20, and keeps matches ordered by score. Recent searches (up to 8) are saved per account by <code>RecentSearchController</code>. A category chip limits the search to that group's categories.</p>
+</div>
+
+<div class="feature">
+<h3>7. Filters and sorting</h3>
+<p><span class="label">What it does:</span> a bottom sheet with Sort by (Relevance, Price low to high, Price high to low, Customer rating) and a price range slider with Clear and Apply.</p>
+<p><span class="label">How:</span> <code>widgets/filter_sheet.dart</code> returns a new <code>ProductQuery</code> (an immutable object with search text, categories, sort and price limits). The controller applies it with <code>ProductQuery.apply()</code> and restarts from page one. The slider runs $0 to $500; at $500 there is no upper limit. A red dot on the filter button shows when a sort or price filter is active.</p>
+</div>
+
+<div class="feature">
+<h3>8. Categories</h3>
+<p><span class="label">What it does:</span> six category cards with a picture and item count, a search field and group chips (All, Fashion, Electronics, Home, Beauty, Sports). A card opens that category's product list.</p>
+<p><span class="label">How:</span> <code>ShopCategory</code> (<code>models/category.dart</code>) maps each app category to the API's category names. The count and cover picture are computed from the loaded products by <code>CatalogController</code>. The category page reuses the paged grid with a <code>ProductQuery</code> limited to those names.</p>
+</div>
+
+<h2>Buying</h2>
+
+<div class="feature">
+<h3>9. Product details</h3>
+<p><span class="label">What it does:</span> swipeable image gallery, name, brand, rating, price with discount, stock text, a Color and Size choice, quantity, Add to Cart and a heart.</p>
+<p><span class="label">How:</span> <code>views/product/product_detail_view.dart</code>. The card image and the gallery share a <code>Hero</code> tag, so the picture animates between pages. The API provides no colour or size data (its extra images are only more views of the same item), so every product shows one default choice, Color "Default" and Size "One size", rather than made-up options. Add to Cart and the quantity bar sit in the page's bottom slot, so pop-up messages appear above them. Out-of-stock products disable the button.</p>
+</div>
+
+<div class="feature">
+<h3>10. Cart</h3>
+<p><span class="label">What it does:</span> cart lines with quantity +/−, delete (swipe or bin) with Undo, clear-all with confirmation, and an order summary: subtotal, shipping and total.</p>
+<p><span class="label">How:</span> <code>CartController</code> keeps the lines. There is one line per product, so adding the same product again raises its quantity. Removing returns the line's position so Undo can put it back in place. Shipping is free from a $50 subtotal, otherwise $4.99. Every change is saved through <code>StorageService</code> and the tab badge updates through Provider.</p>
+</div>
+
+<div class="feature">
+<h3>11. Checkout and orders</h3>
+<p><span class="label">What it does:</span> Checkout shows a loading button for about a second, then an animated success page with the order id, item count and total. My Orders (Profile) lists past orders.</p>
+<p><span class="label">How:</span> no payment is made. <code>CartController.placeOrder()</code> creates an <code>Order</code> (id like SE123456), saves it with the account's orders and empties the cart. The success page is <code>views/cart/order_success_view.dart</code>; the list is <code>views/profile/orders_view.dart</code>. The status label "Processing" is fixed text.</p>
+</div>
+
+<div class="feature">
+<h3>12. Wishlist</h3>
+<p><span class="label">What it does:</span> the heart on any product saves it; the Wishlist tab shows the saved items.</p>
+<p><span class="label">How:</span> <code>WishlistController</code> stores only product ids per account. <code>WishlistButton</code> uses <code>context.select</code>, so only the tapped heart rebuilds, with a small bounce animation. The Wishlist tab looks the ids up in the catalogue. An empty list shows a message with a shortcut back to shopping.</p>
+</div>
+
+<h2>App-wide</h2>
+
+<div class="feature">
+<h3>13. Profile</h3>
+<p><span class="label">What it does:</span> avatar in the account's colour, name and e-mail; My Orders, Wishlist and Settings work; Log out asks for confirmation. Addresses, Payment Methods, Notifications and Help &amp; Support only show a "not part of this demo" message.</p>
+<p><span class="label">How:</span> <code>views/profile/profile_view.dart</code> reads the user from <code>AuthController</code>. Log out clears the session and returns to Login.</p>
+</div>
+
+<div class="feature">
+<h3>14. Light, Dark and System theme</h3>
+<p><span class="label">What it does:</span> Settings → Appearance switches the whole app instantly and remembers the choice. System follows the phone's setting.</p>
+<p><span class="label">How:</span> <code>ThemeController</code> saves the mode. <code>AppColors</code> returns light or dark colours according to one flag. When the mode changes, <code>main.dart</code> flips the flag, builds a new Material theme and marks every open widget for rebuild, so colours update without losing the current page, scroll position or typed text. The status bar and navigation bar icons change too.</p>
+</div>
+
+<div class="feature">
+<h3>15. Navigation, loading and responsiveness</h3>
+<ul>
+<li><b>Bottom navigation:</b> five tabs kept alive with an <code>IndexedStack</code>, so each tab keeps its scroll position. Back on another tab returns to Home first (<code>PopScope</code>).</li>
+<li><b>Loading and errors:</b> shimmer placeholders while products load; a retry message on failure; "No products found" for empty results; an "Offline" note when placeholder products are used.</li>
+<li><b>Micro-interactions:</b> press-scale on taps (<code>Tappable</code>), fade-in of new cards, animated toggle, hearts and quantity numbers.</li>
+<li><b>Responsive:</b> grid columns = available width ÷ 185, limited to 2 to 5; card height follows the text size setting; wide screens get larger page padding.</li>
+</ul>
+</div>
+
+<footer>ShopEase · Feature guide · Project folder: salmankvwhitematrix</footer>
+</body></html>

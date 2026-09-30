@@ -1,0 +1,95 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>ShopEase - Technology Used</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<header>
+  <div class="brand">ShopEase · Flutter shopping app</div>
+  <h1>Technology Used</h1>
+  <p>What the app is built with, and how each piece is used.</p>
+</header>
+
+<h2>1. At a glance</h2>
+<table>
+<tr><th style="width:26%">Area</th><th style="width:30%">Choice</th><th>How it is used</th></tr>
+<tr><td>Framework</td><td>Flutter 3.41 · Dart 3.11</td><td>One codebase, built for Android. Material 3 widgets.</td></tr>
+<tr><td>Architecture</td><td>MVC</td><td>Models (data), Views (screens), Controllers (logic and state), plus a Services layer for data access.</td></tr>
+<tr><td>State management</td><td><code>provider</code></td><td>Each controller is a <code>ChangeNotifier</code>; screens listen and rebuild when it calls <code>notifyListeners()</code>.</td></tr>
+<tr><td>Font</td><td>Poppins (<code>google_fonts</code>)</td><td>Set once in the theme, so every text in the app uses it.</td></tr>
+<tr><td>Product data / API</td><td>DummyJSON (free, no key)</td><td>One HTTP request fetches all products with images, prices and ratings.</td></tr>
+<tr><td>Networking</td><td><code>http</code></td><td>A single GET request with a 15-second timeout.</td></tr>
+<tr><td>Local storage</td><td><code>shared_preferences</code></td><td>Saves the login session, cart, wishlist, orders, recent searches and theme on the phone.</td></tr>
+<tr><td>Images</td><td><code>cached_network_image</code></td><td>Downloads each picture once, then shows it from the cache.</td></tr>
+<tr><td>Loading effect</td><td><code>shimmer</code></td><td>Grey animated placeholders while products load.</td></tr>
+<tr><td>Testing</td><td><code>flutter_test</code></td><td>13 unit tests (validators, accounts, per-account data, cart, theme, search/sort, pagination).</td></tr>
+</table>
+
+<h2>2. Architecture (MVC + Provider)</h2>
+<table>
+<tr><th style="width:22%">Folder (<code>lib/</code>)</th><th>Role</th></tr>
+<tr><td><code>models/</code></td><td><b>M</b> · plain data classes: <code>Product</code>, <code>ShopCategory</code>, <code>CartItem</code>, <code>Order</code>, <code>AppUser</code>.</td></tr>
+<tr><td><code>views/</code></td><td><b>V</b> · the screens: splash, login, home, categories, search, product, cart, wishlist, profile, settings.</td></tr>
+<tr><td><code>controllers/</code></td><td><b>C</b> · state and logic: Auth, Catalog, PagedProducts, Cart, Wishlist, RecentSearch, Nav, Theme.</td></tr>
+<tr><td><code>services/</code></td><td>The only code that reaches data: <code>ProductRepository</code> (API), <code>StorageService</code> (phone storage), <code>ProductQuery</code> (search/filter/sort rules), <code>MockData</code> (offline fallback).</td></tr>
+<tr><td><code>widgets/</code></td><td>Reusable UI: product card, paged product grid, buttons, text field, filter sheet, shimmer, empty states.</td></tr>
+<tr><td><code>core/</code></td><td>Theme, colours, routes, validators, responsive helpers, demo accounts.</td></tr>
+</table>
+<div class="flow">Screen tap → Controller method → Service (API or storage) → Controller updates state → notifyListeners() → Provider rebuilds the screen</div>
+<p>Controllers are created once in <code>main.dart</code> with <code>MultiProvider</code>. Screens read them with <code>context.watch</code> (rebuild on change) or <code>context.read</code> (just call a method).</p>
+
+<h2>3. Data and API</h2>
+<h3>Where the product data comes from</h3>
+<p><code>ProductRepository</code> calls <code>GET https://dummyjson.com/products?limit=0&amp;select=...</code>. <code>limit=0</code> returns every product in one response. Each item is turned into a <code>Product</code> object; vehicle categories are dropped, leaving 22 categories grouped into 6 app categories.</p>
+<ul>
+<li>The result is cached in memory, so every screen shares one list.</li>
+<li>The list is shuffled with a fixed seed (7): the feed looks mixed but is the same on every launch.</li>
+<li>If the request fails, about 50 built-in placeholder products are used and Home shows an "Offline" note.</li>
+</ul>
+<h3>What each value is based on</h3>
+<table>
+<tr><th style="width:38%">Value</th><th>Source</th></tr>
+<tr><td>Name, description, brand, price, discount %, rating, stock, images</td><td>From the API response.</td></tr>
+<tr><td>"Original" (struck-through) price</td><td>Calculated: price ÷ (1 − discount%).</td></tr>
+<tr><td>Review count</td><td>Generated from the product id (the API has no review counts).</td></tr>
+<tr><td>Colour and size options</td><td>The API has no colour or size data, so every product shows one default choice: Color "Default" and Size "One size".</td></tr>
+<tr><td>Best Deals, category counts and covers</td><td>Calculated from the loaded products.</td></tr>
+<tr><td>Search, sort, price and category filters</td><td>Done on the phone by <code>ProductQuery</code>.</td></tr>
+<tr><td>Banners, popular searches, notification text</td><td>Fixed text in the code.</td></tr>
+</table>
+
+<h2>4. Storage (on the phone)</h2>
+<p><code>shared_preferences</code> keeps small key-value data. Cart, wishlist, orders and searches are stored <b>per account</b>: every key starts with the account's e-mail.</p>
+<table>
+<tr><th style="width:34%">Key</th><th>Holds</th><th style="width:16%">Scope</th></tr>
+<tr><td><code>&lt;email&gt;:cart</code></td><td>Cart lines (a product copy and quantity)</td><td>Per account</td></tr>
+<tr><td><code>&lt;email&gt;:orders</code></td><td>Placed orders</td><td>Per account</td></tr>
+<tr><td><code>&lt;email&gt;:wishlist</code></td><td>Liked product ids</td><td>Per account</td></tr>
+<tr><td><code>&lt;email&gt;:recent</code></td><td>Recent search words (up to 8)</td><td>Per account</td></tr>
+<tr><td><code>user</code></td><td>Logged-in user (name, e-mail, phone)</td><td>Global</td></tr>
+<tr><td><code>theme_mode</code></td><td>Light, dark or system</td><td>Global</td></tr>
+</table>
+
+<h2>5. Login and accounts</h2>
+<p>There is no backend. Three accounts are fixed in <code>core/demo_accounts.dart</code> and accept the e-mail or phone number. A one-second delay imitates a network call. Only the logins are fixed; every account starts with an empty cart and wishlist.</p>
+<table>
+<tr><th>Name</th><th>Email</th><th>Phone</th><th>Password</th></tr>
+<tr><td>Salman Khan</td><td>salman@gmail.com</td><td>9876543210</td><td>Shop@123</td></tr>
+<tr><td>Aisha Rahman</td><td>aisha@shopease.com</td><td>9123456780</td><td>Aisha@456</td></tr>
+<tr><td>Rahul Nair</td><td>rahul@shopease.com</td><td>9000011111</td><td>Rahul@789</td></tr>
+</table>
+
+<h2>6. Design, font and theme</h2>
+<ul>
+<li><b>Font:</b> Poppins, loaded by <code>google_fonts</code> and applied to the whole text theme. It is downloaded the first time it is needed, so the first launch needs internet; without it the system font is used.</li>
+<li><b>Colours:</b> <code>AppColors</code> holds the brand blue <code>#1F64F2</code> and status colours as constants; background, card, border and text colours are getters that return a light or dark value.</li>
+<li><b>Theme:</b> <code>AppTheme.build()</code> creates the Material 3 theme. Light, Dark and System are chosen in Settings and saved by <code>ThemeController</code>.</li>
+<li><b>Responsive:</b> product grids use 2 to 5 columns depending on width; forms scroll so the keyboard never hides a field.</li>
+</ul>
+
+<h2>7. Other packages and tools</h2>
+<table>
+<tr><th style="width:30%">Item</th><th>Used for</th></tr>
+<tr><td>Material icons</td><td>All icons in the app (no extra icon package).</td></tr>
+<tr><td><code>flutter analyze</code></td><td>Static checks; no issues at the last run.</td></tr>
+<tr><td>Android emulator (Pixel 6a)</td><td>Used to run and check the app.</td></tr>
+</table>
+<footer>ShopEase · Technology summary · Project folder: salmankvwhitematrix</footer>
+</body></html>
